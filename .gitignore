@@ -1,7 +1,7 @@
 # เก็บเฉพาะ template + เอกสาร — อย่าเอา mbix-backstage (เป็น git repo แยกของตัวเอง)
 /*
 !/.gitignore
-!/README.md
+# README.md (migration guide) มีข้อมูลงานลูกค้า — เก็บไว้ local เท่านั้น ห้าม push (repo เป็น public)
 !/openshift-lab-gitops-plan.md
 !/quakus-app-template/
 !/deploy-service-template/
