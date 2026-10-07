@@ -1,0 +1,6 @@
+site_name: ${{ values.application_name }}
+site_description: ${{ values.description }}
+plugins:
+  - techdocs-core
+nav:
+  - Getting Started: index.md

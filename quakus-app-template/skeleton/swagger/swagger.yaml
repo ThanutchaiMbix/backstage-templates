@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: ${{ values.application_name }} API
+  description: ${{ values.description }}
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /hello:
+    get:
+      summary: Greeting
+      description: Returns a greeting from the Quarkus + Camel service
+      operationId: hello
+      parameters:
+        - name: name
+          in: query
+          description: Name to greet (defaults to Minikube)
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: successful operation
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Hello Minikube! Quarkus + Camel is running on Kubernetes.
+  /q/health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: service is healthy

@@ -1,0 +1,100 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: deploy-service-to-openshift
+  title: Deploy Service to OpenShift (GitOps Onboard)
+  description: เอา service ที่มีอยู่ใน catalog เข้าสู่ระบบ deploy — สร้าง ArgoCD Application ชี้ไปที่ k8s/ ของ repo (ใช้ได้ทั้ง app ที่เจนจาก template และ repo เดิมที่ register ใน catalog แล้ว)
+  tags:
+    - argocd
+    - gitops
+    - openshift
+    - tekton
+spec:
+  owner: developers
+  type: service
+
+  parameters:
+    - title: Service
+      required:
+        - component
+      properties:
+        component:
+          title: Component (จาก catalog)
+          type: string
+          description: เฉพาะ component ที่มี annotation github.com/project-slug (เช่น ตัวที่เจนจาก template Quarkus)
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              - kind: Component
+
+    - title: Deployment Target
+      required:
+        - targetNamespace
+      properties:
+        targetNamespace:
+          title: Target Namespace
+          type: string
+          default: demo
+          description: namespace ปลายทางบน cluster (ควรตรงกับ namespace ที่ Tekton push image)
+        argocdNamespace:
+          title: ArgoCD Namespace
+          type: string
+          default: openshift-gitops
+          description: namespace ที่ ArgoCD (OpenShift GitOps) รันอยู่
+        clusterAppsDomain:
+          title: Cluster Apps Domain
+          type: string
+          default: apps.example.openshift.com
+          description: domain ของ route บน cluster สำหรับสร้างลิงก์ในหน้าผลลัพธ์
+
+  steps:
+    # 1. อ่าน entity จาก catalog เพื่อเอา repo จาก annotation github.com/project-slug
+    - id: fetchEntity
+      name: Fetch Component from Catalog
+      action: catalog:fetch
+      input:
+        entityRef: ${{ parameters.component }}
+
+    # 2. สร้าง ArgoCD Application ผ่าน ArgoCD proxy ของ Backstage
+    #    (แนวเดียวกับที่ใช้งานได้อยู่ — ถ้าต่อยอดแบบ app-of-apps ให้เปลี่ยน step นี้เป็นการ commit ไฟล์ Application เข้า GitOps repo แทน)
+    - id: createArgoApp
+      name: Create ArgoCD Application
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /proxy/argocd/api/applications
+        headers:
+          content-type: application/json
+        body:
+          metadata:
+            name: ${{ steps.fetchEntity.output.entity.metadata.name }}
+            namespace: ${{ parameters.argocdNamespace }}
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/${{ steps.fetchEntity.output.entity.metadata.annotations['github.com/project-slug'] }}.git
+              targetRevision: HEAD
+              path: k8s
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: ${{ parameters.targetNamespace }}
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true
+
+  output:
+    text:
+      - title: What happened
+        content: |
+          สร้าง ArgoCD Application **${{ steps.fetchEntity.output.entity.metadata.name }}** แล้ว
+          — source: `k8s/` ของ repo ของ component นี้, destination: namespace `${{ parameters.targetNamespace }}`, auto-sync
+          ArgoCD จะ deploy เมื่อ Tekton push tag ใหม่เข้า `k8s/deployment.yaml`
+          (ถ้า repo นี้ยังไม่เคย build — push ครั้งแรกเพื่อให้ CI สร้าง image ก่อน)
+    links:
+      - title: ArgoCD Application
+        url: https://openshift-gitops-server-openshift-gitops.${{ parameters.clusterAppsDomain }}/applications/${{ parameters.argocdNamespace }}/${{ steps.fetchEntity.output.entity.metadata.name }}
+      - title: App Route
+        url: https://${{ steps.fetchEntity.output.entity.metadata.name }}-${{ parameters.targetNamespace }}.${{ parameters.clusterAppsDomain }}

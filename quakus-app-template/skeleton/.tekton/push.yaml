@@ -1,0 +1,143 @@
+# =============================================================================
+# Tekton PipelineRun (Pipelines as Code) — สร้างโดย Backstage template
+#
+# Flow: git push → PAC → pipeline นี้
+#         1) clone
+#         2) buildah build + push image (tag = commit sha) ไป internal registry
+#         3) commit  tag ใหม่เข้า k8s/deployment.yaml แล้ว push กลับ (GitOps)
+#            → ArgoCD เห็น manifest เปลี่ยน แล้ว sync ลง cluster เอง
+#         commit กลับใส่ [skip ci] เพื่อไม่ให้ trigger ตัวเองวนลูป
+#
+# One-time setup ต่อ namespace (เช่น demo) ก่อนใช้งาน:
+#   1) ให้ SA "pipeline" push image ได้:
+#        oc policy add-role-to-user system:image-builder \
+#          system:serviceaccount:<ns>:pipeline -n <ns>
+#   2) อนุญาตให้ buildah รันแบบ privileged:
+#        oc adm policy add-scc-to-user privileged -z pipeline -n <ns>
+#   3) secret สำหรับ login internal registry:
+#        oc registry login --insecure=true \
+#          --registry=image-registry.openshift-image-registry.svc:5000
+#        oc create secret generic registry-auth \
+#          --from-file=.dockerconfigjson=$HOME/.config/containers/auth.json -n <ns>
+#   4) secret สำหรับ push manifest กลับ repo (fine-grained PAT สิทธิ์ Contents: RW):
+#        oc create secret generic github-push-token \
+#          --from-literal=token=<GITHUB_PAT> -n <ns>
+#   5) apply Repository CR ผูก repo กับ pipeline:
+#        oc apply -f .tekton/repository.yaml
+#
+# หมายเหตุ: ไม่ใช้ hub resolver เพื่อให้รันได้แม้ cluster เข้า artifacthub ไม่ได้
+# รูปแบบ ${{ ... }} คือ template ของ Backstage (render ตอน generate repo)
+# รูปแบบ {{ ... }} คือ placeholder ของ PAC (แทนค่าตอน trigger)  — ทั้งสองแบบไม่ชนกัน
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: build-and-update-manifests
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[push]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  params:
+    - name: repo_url
+      value: "{{ repo_url }}"
+    - name: revision
+      value: "{{ revision }}"
+    - name: image
+      value: "${{ values.image }}"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    - name: registry-auth
+      secret:
+        secretName: registry-auth
+    - name: github-auth
+      secret:
+        secretName: github-push-token
+  pipelineSpec:
+    params:
+      - name: repo_url
+        type: string
+      - name: revision
+        type: string
+      - name: image
+        type: string
+    workspaces:
+      - name: source
+      - name: registry-auth
+      - name: github-auth
+    tasks:
+      - name: fetch-source
+        workspaces:
+          - name: source
+            workspace: source
+        steps:
+          - name: clone
+            image: registry.access.redhat.com/ubi9/ubi:latest
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              dnf install -y git >/dev/null
+              git clone "$(params.repo_url)" "$(workspaces.source.path)/source"
+              cd "$(workspaces.source.path)/source"
+              git checkout "$(params.revision)"
+
+      - name: build-and-push
+        runAfter: [fetch-source]
+        workspaces:
+          - name: source
+            workspace: source
+          - name: registry-auth
+            workspace: registry-auth
+        steps:
+          - name: build-and-push
+            image: quay.io/buildah/stable:latest
+            securityContext:
+              privileged: true
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              cd "$(workspaces.source.path)/source"
+              export REGISTRY_AUTH_FILE="$(workspaces.registry-auth.path)/.dockerconfigjson"
+              IMAGE="$(params.image)"
+              TAG="$(params.revision)"
+              buildah --storage-driver=vfs bud --tls-verify=false \
+                -t "${IMAGE}:${TAG}" -f Dockerfile .
+              buildah --storage-driver=vfs push --tls-verify=false \
+                "docker://${IMAGE}:${TAG}"
+
+      - name: update-manifests
+        runAfter: [build-and-push]
+        workspaces:
+          - name: source
+            workspace: source
+          - name: github-auth
+            workspace: github-auth
+        steps:
+          - name: bump-image-tag
+            image: registry.access.redhat.com/ubi9/ubi:latest
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              dnf install -y git >/dev/null
+              cd "$(workspaces.source.path)/source"
+              IMAGE="$(params.image)"
+              TAG="$(params.revision)"
+              REPO="$(echo "$(params.repo_url)" | sed -E 's#https://github.com/##; s#\.git$##')"
+              sed -i "s#image: .*#image: ${IMAGE}:${TAG}#" k8s/deployment.yaml
+              git config user.name "backstage-tekton-bot"
+              git config user.email "tekton-bot@backstage.local"
+              git add k8s/deployment.yaml
+              if git diff --cached --quiet; then
+                echo "Image tag unchanged — nothing to commit"
+                exit 0
+              fi
+              git commit -m "chore(deploy): bump image to ${TAG} [skip ci]"
+              TOKEN="$(cat "$(workspaces.github-auth.path)/token")"
+              git push "https://x-access-token:${TOKEN}@github.com/${REPO}.git" HEAD:main

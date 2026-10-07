@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>${{ values.application_name }}</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- ข้อ 1: Red Hat Build of Quarkus + Red Hat Build of Apache Camel for Quarkus
+             - ห้ามผสม io.quarkus.platform (community) กับ com.redhat.quarkus.platform ในโปรเจกต์เดียวกัน
+             - BOM ทั้งสองต้องเป็นเวอร์ชันเดียวกัน -->
+        <quarkus.platform.group-id>com.redhat.quarkus.platform</quarkus.platform.group-id>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.version>3.27.2.redhat-00002</quarkus.platform.version>
+        <quarkus-camel-bom.version>3.27.2.redhat-00002</quarkus-camel-bom.version>
+    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <!-- BOM หลักของ Quarkus (Red Hat) -->
+            <dependency>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- BOM สำหรับ Camel extensions (Red Hat) -->
+            <dependency>
+                <groupId>com.redhat.quarkus.platform</groupId>
+                <artifactId>quarkus-camel-bom</artifactId>
+                <version>${quarkus-camel-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <dependencies>
+        <!-- REST (Quarkus REST) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <!-- Kubernetes health probes: /q/health/live and /q/health/ready -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
+        <!-- OpenAPI + Swagger UI at /q/swagger-ui -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+        <!-- Apache Camel extensions
+             ข้อ 1: groupId เป็น org.apache.camel.quarkus (ไม่ใช่ camel-xxx-starter)
+             เวอร์ชันจัดการโดย quarkus-camel-bom ข้างบน -->
+        <dependency>
+            <groupId>org.apache.camel.quarkus</groupId>
+            <artifactId>camel-quarkus-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel.quarkus</groupId>
+            <artifactId>camel-quarkus-timer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel.quarkus</groupId>
+            <artifactId>camel-quarkus-log</artifactId>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

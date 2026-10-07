@@ -1,0 +1,10 @@
+# PAC Repository CR — ผูก repo นี้กับ PipelineRun (.tekton/push.yaml)
+# apply ครั้งเดียวต่อ repo (ใน namespace ที่ให้ pipeline รัน):
+#   oc apply -f .tekton/repository.yaml
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  name: ${{ values.application_name }}
+  namespace: ${{ values.targetNamespace }}
+spec:
+  url: "https://github.com/${{ values.orgName }}/${{ values.application_name }}"

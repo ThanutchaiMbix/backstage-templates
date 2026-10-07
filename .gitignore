@@ -1,0 +1,7 @@
+# เก็บเฉพาะ template + เอกสาร — อย่าเอา mbix-backstage (เป็น git repo แยกของตัวเอง)
+/*
+!/.gitignore
+!/README.md
+!/openshift-lab-gitops-plan.md
+!/quakus-app-template/
+!/deploy-service-template/

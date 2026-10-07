@@ -1,0 +1,46 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.application_name }}
+  description: ${{ values.description }}
+  annotations:
+    vault.io/secrets-path: backstage
+    github.com/project-slug: ${{ values.orgName }}/${{ values.application_name }}
+    backstage.io/source-location: url:https://github.com/${{ values.orgName }}/${{ values.application_name }}/tree/main/
+    argocd/app-name: ${{ values.application_name }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/kubernetes-id: ${{ values.application_name }}
+    backstage.io/kubernetes-namespace: ${{ values.targetNamespace }}
+  tags:
+    - quarkus
+    - camel
+    - java
+    - maven
+    - kubernetes
+    - tekton
+    - argocd
+  links:
+    - url: https://openshift-gitops-server-openshift-gitops.${{ values.clusterAppsDomain }}/applications/openshift-gitops/${{ values.application_name }}
+      title: ArgoCD Dashboard
+      icon: dashboard
+    - url: https://${{ values.application_name }}-${{ values.targetNamespace }}.${{ values.clusterAppsDomain }}/q/swagger-ui
+      title: Swagger API Docs
+      icon: docs
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  providesApis:
+    - ${{ values.application_name }}-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.application_name }}-api
+  description: The ${{ values.application_name }} API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  definition:
+    $text: ./swagger/swagger.yaml

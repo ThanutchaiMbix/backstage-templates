@@ -1,0 +1,117 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: quarkus-service
+  title: Quarkus + Camel Service (Scaffold)
+  description: สร้างโปรเจกต์ Quarkus (Apache Camel) + GitHub repo + catalog เท่านั้น ไม่ deploy — CI (Tekton) จะ build image ให้อัตโนมัติ ส่วนการ deploy ให้ใช้ template "Deploy Service to OpenShift" ภายหลัง
+  tags:
+    - quarkus
+    - camel
+    - java
+    - maven
+    - kubernetes
+    - tekton
+spec:
+  owner: developers
+  type: service
+
+  parameters:
+    - title: Ownership
+      required:
+        - owner
+      properties:
+        owner:
+          title: Owner
+          type: string
+          default: developers
+          description: กลุ่มเจ้าของ service (Group จาก catalog)
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: App Info
+      required:
+        - application_name
+        - orgName
+        - targetNamespace
+      properties:
+        application_name:
+          title: Application Name
+          type: string
+          default: quarkus-service
+          description: ใช้เป็นชื่อ repo, image และ resource บน cluster
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          default: Quarkus (Camel) service created by Backstage Software Template
+        orgName:
+          title: GitHub Organization
+          type: string
+          default: mbixdemodevs
+        targetNamespace:
+          title: Target Namespace
+          type: string
+          default: demo
+          description: namespace ปลายทางบน OpenShift (ต้องใช้ namespace เดียวกันตอน deploy และตอนสร้าง secret ของ Tekton)
+
+    - title: Cluster Info
+      required:
+        - clusterAppsDomain
+      properties:
+        clusterAppsDomain:
+          title: Cluster Apps Domain
+          type: string
+          default: apps.example.openshift.com
+          description: domain ของ route บน cluster เช่น apps.mycluster.example.com (ใช้สร้างลิงก์ใน catalog)
+
+  steps:
+    # 1. generate code (k8s/ + .tekton/ ถูกใส่มาให้แต่ยัง "หลับ" — ไม่มีการ deploy)
+    - id: fetch
+      name: Fetch Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          application_name: ${{ parameters.application_name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          orgName: ${{ parameters.orgName }}
+          targetNamespace: ${{ parameters.targetNamespace }}
+          argocdNamespace: openshift-gitops
+          clusterAppsDomain: ${{ parameters.clusterAppsDomain }}
+          image: image-registry.openshift-image-registry.svc:5000/${{ parameters.targetNamespace }}/${{ parameters.application_name }}
+
+    # 2. publish repo
+    - id: publish
+      name: Publish Repo
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.orgName }}&repo=${{ parameters.application_name }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: public
+
+    # 3. register catalog (ไม่มี step deploy — จงใจ)
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+    text:
+      - title: Next step
+        content: |
+          Repo + catalog ถูกสร้างแล้ว — CI (Tekton) จะ build image ให้อัตโนมัติเมื่อมีการ push
+          **ยังไม่มีการ deploy** เมื่อพร้อมให้รัน template **"Deploy Service to OpenShift"**
+          แล้วเลือก component นี้ เพื่อสร้าง ArgoCD Application
