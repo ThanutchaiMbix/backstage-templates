@@ -26,8 +26,8 @@
 #        oc apply -f .tekton/repository.yaml
 #
 # หมายเหตุ: ไม่ใช้ hub resolver เพื่อให้รันได้แม้ cluster เข้า artifacthub ไม่ได้
-# รูปแบบ ${{ ... }} คือ template ของ Backstage (render ตอน generate repo)
-# รูปแบบ {{ ... }} คือ placeholder ของ PAC (แทนค่าตอน trigger)  — ทั้งสองแบบไม่ชนกัน
+# รูปแบบ placeholder ที่นำหน้าด้วยเครื่องหมาย dollar คือ template ของ Backstage (render ตอน generate repo)
+# รูปแบบ double curly braces คือ placeholder ของ PAC (แทนค่าตอน trigger) — ทั้งสองแบบไม่ชนกัน
 # =============================================================================
 apiVersion: tekton.dev/v1
 kind: PipelineRun
