@@ -16,6 +16,39 @@
         <quarkus.platform.version>3.27.2.redhat-00002</quarkus.platform.version>
         <quarkus-camel-bom.version>3.27.2.redhat-00002</quarkus-camel-bom.version>
     </properties>
+    <!-- Red Hat artifacts (com.redhat.quarkus.platform) ไม่ได้อยู่บน Maven Central
+         ต้องดึงจาก Red Hat GA Repository — ใส่ไว้ใน pom เพื่อไม่ต้องพึ่ง settings.xml ของแต่ละคน
+         (อ้าง: ข้อเตรียมก่อน migrate ข้อ 1 ใน migration guide) -->
+    <repositories>
+        <repository>
+            <id>redhat-ga-repository</id>
+            <name>Red Hat GA Repository</name>
+            <url>https://maven.repository.redhat.com/ga/</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>never</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+                <updatePolicy>never</updatePolicy>
+            </snapshots>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>redhat-ga-repository</id>
+            <name>Red Hat GA Repository</name>
+            <url>https://maven.repository.redhat.com/ga/</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>never</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+                <updatePolicy>never</updatePolicy>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
     <dependencyManagement>
         <dependencies>
             <!-- BOM หลักของ Quarkus (Red Hat) -->
