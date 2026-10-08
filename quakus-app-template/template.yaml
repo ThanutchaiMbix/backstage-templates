@@ -93,6 +93,9 @@ spec:
         description: ${{ parameters.description }}
         defaultBranch: main
         repoVisibility: public
+        # flow ของเรา push ตรงเข้า main (cluster lab) — ไม่ล็อก main ด้วย branch protection
+        # (publish:github default ของ Backstage เวอร์ชันใหม่คือ protect ให้ ต้องปิดเอง)
+        protectDefaultBranch: false
 
     # 3. register catalog (ไม่มี step deploy — จงใจ)
     - id: register
