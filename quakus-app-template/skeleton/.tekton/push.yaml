@@ -21,12 +21,9 @@
 #   3) secret สำหรับ push manifest กลับ repo (PAT สิทธิ์ Contents: RW):
 #        oc create secret generic github-push-token \
 #          --from-literal=token=<GITHUB_PAT> -n <ns>
-#   4) apply Repository CR ผูก repo กับ pipeline:
-#        oc apply -f .tekton/repository.yaml
 #
 # (login internal registry ไม่ต้องใช้ secret — build step ใช้ SA token ที่ pod mount มาให้เอง)
 #
-# หมายเหตุ: ไม่ใช้ hub resolver เพื่อให้รันได้แม้ cluster เข้า artifacthub ไม่ได้
 # รูปแบบ placeholder ที่นำหน้าด้วยเครื่องหมาย dollar คือ template ของ Backstage (render ตอน generate repo)
 # รูปแบบ double curly braces คือ placeholder ของ PAC (แทนค่าตอน trigger) — ทั้งสองแบบไม่ชนกัน
 # =============================================================================
@@ -74,42 +71,48 @@ spec:
         workspaces:
           - name: source
             workspace: source
-        steps:
-          - name: clone
-            image: registry.access.redhat.com/ubi9/ubi:latest
-            script: |
-              #!/usr/bin/env bash
-              set -euo pipefail
-              dnf install -y git >/dev/null
-              git clone "$(params.repo_url)" "$(workspaces.source.path)/source"
-              cd "$(workspaces.source.path)/source"
-              git checkout "$(params.revision)"
+        taskSpec:
+          workspaces:
+            - name: source
+          steps:
+            - name: clone
+              image: registry.access.redhat.com/ubi9/ubi:latest
+              script: |
+                #!/usr/bin/env bash
+                set -euo pipefail
+                dnf install -y git >/dev/null
+                git clone "$(params.repo_url)" "$(workspaces.source.path)/source"
+                cd "$(workspaces.source.path)/source"
+                git checkout "$(params.revision)"
 
       - name: build-and-push
         runAfter: [fetch-source]
         workspaces:
           - name: source
             workspace: source
-        steps:
-          - name: build-and-push
-            image: quay.io/buildah/stable:latest
-            securityContext:
-              privileged: true
-            script: |
-              #!/usr/bin/env bash
-              set -euo pipefail
-              cd "$(workspaces.source.path)/source"
-              IMAGE="$(params.image)"
-              TAG="$(params.revision)"
-              # login internal registry ด้วย SA token ที่ pod mount มาให้ (ไม่ต้องมี secret)
-              buildah login --tls-verify=false \
-                -u serviceaccount \
-                -p "$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
-                image-registry.openshift-image-registry.svc:5000
-              buildah --storage-driver=vfs bud --tls-verify=false \
-                -t "${IMAGE}:${TAG}" -f Dockerfile .
-              buildah --storage-driver=vfs push --tls-verify=false \
-                "docker://${IMAGE}:${TAG}"
+        taskSpec:
+          workspaces:
+            - name: source
+          steps:
+            - name: build-and-push
+              image: quay.io/buildah/stable:latest
+              securityContext:
+                privileged: true
+              script: |
+                #!/usr/bin/env bash
+                set -euo pipefail
+                cd "$(workspaces.source.path)/source"
+                IMAGE="$(params.image)"
+                TAG="$(params.revision)"
+                # login internal registry ด้วย SA token ที่ pod mount มาให้ (ไม่ต้องมี secret)
+                buildah login --tls-verify=false \
+                  -u serviceaccount \
+                  -p "$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                  image-registry.openshift-image-registry.svc:5000
+                buildah --storage-driver=vfs bud --tls-verify=false \
+                  -t "${IMAGE}:${TAG}" -f Dockerfile .
+                buildah --storage-driver=vfs push --tls-verify=false \
+                  "docker://${IMAGE}:${TAG}"
 
       - name: update-manifests
         runAfter: [build-and-push]
@@ -118,25 +121,29 @@ spec:
             workspace: source
           - name: github-auth
             workspace: github-auth
-        steps:
-          - name: bump-image-tag
-            image: registry.access.redhat.com/ubi9/ubi:latest
-            script: |
-              #!/usr/bin/env bash
-              set -euo pipefail
-              dnf install -y git >/dev/null
-              cd "$(workspaces.source.path)/source"
-              IMAGE="$(params.image)"
-              TAG="$(params.revision)"
-              REPO="$(echo "$(params.repo_url)" | sed -E 's#https://github.com/##; s#\.git$##')"
-              sed -i "s#image: .*#image: ${IMAGE}:${TAG}#" k8s/deployment.yaml
-              git config user.name "backstage-tekton-bot"
-              git config user.email "tekton-bot@backstage.local"
-              git add k8s/deployment.yaml
-              if git diff --cached --quiet; then
-                echo "Image tag unchanged — nothing to commit"
-                exit 0
-              fi
-              git commit -m "chore(deploy): bump image to ${TAG} [skip ci]"
-              TOKEN="$(cat "$(workspaces.github-auth.path)/token")"
-              git push "https://x-access-token:${TOKEN}@github.com/${REPO}.git" HEAD:main
+        taskSpec:
+          workspaces:
+            - name: source
+            - name: github-auth
+          steps:
+            - name: bump-image-tag
+              image: registry.access.redhat.com/ubi9/ubi:latest
+              script: |
+                #!/usr/bin/env bash
+                set -euo pipefail
+                dnf install -y git >/dev/null
+                cd "$(workspaces.source.path)/source"
+                IMAGE="$(params.image)"
+                TAG="$(params.revision)"
+                REPO="$(echo "$(params.repo_url)" | sed -E 's#https://github.com/##; s#\.git$##')"
+                sed -i "s#image: .*#image: ${IMAGE}:${TAG}#" k8s/deployment.yaml
+                git config user.name "backstage-tekton-bot"
+                git config user.email "tekton-bot@backstage.local"
+                git add k8s/deployment.yaml
+                if git diff --cached --quiet; then
+                  echo "Image tag unchanged — nothing to commit"
+                  exit 0
+                fi
+                git commit -m "chore(deploy): bump image to ${TAG} [skip ci]"
+                TOKEN="$(cat "$(workspaces.github-auth.path)/token")"
+                git push "https://x-access-token:${TOKEN}@github.com/${REPO}.git" HEAD:main
