@@ -124,7 +124,7 @@ spec:
                   --build-arg PROXY_URL="$(params.proxy_url)" \
                   -t "${IMAGE}:${TAG}" -f Dockerfile .
                 buildah --storage-driver=vfs push --tls-verify=false \
-                  "docker://${IMAGE}:${TAG}"
+                  "${IMAGE}:${TAG}"
 
       - name: update-manifests
         runAfter: [build-and-push]
