@@ -64,7 +64,7 @@ annotation ใน catalog entity ก็พอ นอกจากนี้ยั�
 ส่วน Template 2 จำกัดเฉพาะ group ที่ดูแล cluster (RBAC ต่อ template)
 
 ```
-git push ─▶ PAC trigger ─▶ Tekton PipelineRun (.tekton/push.yaml)
+git push ─▶ bash .tekton/trigger.sh ─▶ Tekton PipelineRun (.tekton/push.yaml)
                              1. git-clone
                              2. maven test
                              3. buildah build → push → internal registry
@@ -106,18 +106,23 @@ ArgoCD เห็น manifest เปลี่ยน ────────┘
   ชุดเดียวกัน แล้วเปลี่ยนแค่ build step
 - ตัด `.github/workflows/` ทิ้ง — CI มีตัวเดียวคือ Tekton
 
-**สิ่งที่ PAC ต้องเตรียม (ทีเดียวตอน setup cluster):**
+**การ trigger CI (ตัดสินใจ 2026-10-08):**
 
-- ตั้งค่า GitHub App (หรือ webhook) เชื่อมกับ PAC บน cluster
-- `Repository` CR → template 1 สร้างไฟล์ `.tekton/repository.yaml` ให้แล้ว admin แค่
-  `oc apply -f .tekton/repository.yaml` ตอน onboarding repo
+- สร้าง GitHub App **ไม่ได้** (ข้อจำกัดองค์กร) และ cluster เป็น **intranet-only**
+  (public DNS หา `apps.ocp420.mbixtech.net` ไม่เจอ) → GitHub ส่ง webhook เข้าไม่ถึง
+  ทั้งแบบ App และแบบ webhook+PAT
+- จึงใช้ trigger ด้วยมือ: หลัง push รัน `bash .tekton/trigger.sh` (มากับ skeleton —
+  หา tkn-pac ที่ `~/bin`, ตั้ง ns ได้ด้วย `PIPELINE_NAMESPACE`)
+- ทางเลือกอนาคตถ้าอยากได้ auto-CI บน cluster ภายใน: GitHub self-hosted runner
+  ใน intranet (runner โพล GitHub เอง ไม่ต้องเปิด inbound)
+- `Repository` CR (`.tekton/repository.yaml`) เก็บไว้เผื่อวันข้างหน้า — ตอนนี้ไม่ต้อง apply
 
 **One-time setup ต่อ namespace (รายการคำสั่งอยู่ที่หัวไฟล์ `.tekton/push.yaml`):**
 
 1. `oc policy add-role-to-user system:image-builder system:serviceaccount:<ns>:pipeline -n <ns>` — ให้ push image ได้
 2. `oc adm policy add-scc-to-user privileged -z pipeline -n <ns>` — ให้ buildah รัน privileged ได้
 3. secret `github-push-token` (PAT สิทธิ์ Contents: RW) — สำหรับ push manifest กลับ repo
-4. `oc apply -f .tekton/repository.yaml` — ผูก repo กับ pipeline
+4. (ไม่บังคับ) `oc apply -f .tekton/repository.yaml` — ไว้ใช้เมื่อวันหนึ่งเปิดรับ webhook ได้
 
 > login internal registry ไม่ต้องตั้งอะไร — build step ใช้ SA token ที่ pod mount มาให้เอง
 
@@ -162,6 +167,7 @@ ArgoCD เห็น manifest เปลี่ยน ────────┘
 |---|---|---|
 | `quakus-app-template/template.yaml` | ✅ เขียนใหม่ | ชื่อ `quarkus-service`, OwnerPicker, namespace/domain params, ไม่มี step deploy |
 | `quakus-app-template/skeleton/.tekton/push.yaml` | 🆕 | PipelineRun (PAC): clone → buildah build+push (tag = sha) → commit bump tag กลับ repo `[skip ci]` |
+| `quakus-app-template/skeleton/.tekton/trigger.sh` | 🆕 | สคริปต์ trigger ด้วยมือ (`tkn-pac resolve` + apply) — แทน webhook เพราะ cluster intranet-only |
 | `quakus-app-template/skeleton/.tekton/repository.yaml` | 🆕 | PAC Repository CR — admin ต้อง `oc apply` ตอน onboarding |
 | `quakus-app-template/skeleton/.github/` | 🗑 ลบแล้ว | CI มีตัวเดียวคือ Tekton |
 | `quakus-app-template/skeleton/k8s/deployment.yaml` | ✏️ แก้ | + Route (แทน NodePort), image จาก internal registry (tag `latest` ตั้งต้น) |

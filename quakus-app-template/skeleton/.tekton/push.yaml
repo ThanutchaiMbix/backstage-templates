@@ -1,7 +1,11 @@
 # =============================================================================
 # Tekton PipelineRun (Pipelines as Code) — สร้างโดย Backstage template
 #
-# Flow: git push → PAC → pipeline นี้
+# วิธี trigger: cluster อยู่ intranet (GitHub.com ยิง webhook เข้าไม่ถึง)
+#   → หลัง git push ให้รัน:  bash .tekton/trigger.sh [--follow]
+# (annotations PAC ด้านล่างเก็บไว้ใช้ตอน cluster เปิดรับ webhook ได้ในอนาคต)
+#
+# Flow: git push → bash .tekton/trigger.sh → pipeline นี้
 #         1) clone
 #         2) buildah build + push image (tag = commit sha) ไป internal registry
 #         3) commit  tag ใหม่เข้า k8s/deployment.yaml แล้ว push กลับ (GitOps)

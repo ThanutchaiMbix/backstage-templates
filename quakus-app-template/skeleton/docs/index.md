@@ -60,9 +60,9 @@ kubectl apply -f argocd/application.yaml
 
 ## CI/CD (GitOps)
 
-- **CI — Tekton (Pipelines as Code)**: ทุก push ไป `main` จะ trigger `.tekton/push.yaml`
-  build image (buildah) ไปที่ internal registry ของ cluster แท็กด้วย commit sha
-  แล้ว commit แท็กใหม่เข้า `k8s/deployment.yaml` กลับมาที่ repo นี้
+- **CI — Tekton (trigger ด้วยมือ)**: cluster อยู่ intranet — GitHub ส่ง webhook เข้าไม่ถึง
+  จึง trigger ด้วย `bash .tekton/trigger.sh --follow` หลัง push — pipeline จะ build image (buildah)
+  ไปที่ internal registry แท็กด้วย commit sha แล้ว commit แท็กใหม่เข้า `k8s/deployment.yaml` กลับมาที่ repo นี้
 - **CD — ArgoCD (OpenShift GitOps)**: จับตา `k8s/` ของ repo นี้ แล้ว sync ลง cluster
   เมื่อแท็ก image เปลี่ยน (Application ถูกสร้างผ่าน template "Deploy Service to OpenShift")
 
