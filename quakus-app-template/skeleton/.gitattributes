@@ -1,0 +1,2 @@
+# shell scripts ต้องเป็น LF — รันใน WSL/container (CRLF ทำ bash พัง)
+*.sh text eol=lf
