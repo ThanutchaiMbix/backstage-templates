@@ -67,5 +67,5 @@ kubectl apply -f argocd/application.yaml
   เมื่อแท็ก image เปลี่ยน (Application ถูกสร้างผ่าน template "Deploy Service to OpenShift")
 
 ข้อกำหนดก่อนใช้งาน (one-time ต่อ namespace): ดูหัวข้อ setup ที่หัวไฟล์ `.tekton/push.yaml`
-(สิทธิ์ push image, privileged สำหรับ buildah, secret `registry-auth` + `github-push-token`,
+(สิทธิ์ push image, privileged สำหรับ buildah, secret `github-push-token`,
 และ `oc apply -f .tekton/repository.yaml`)

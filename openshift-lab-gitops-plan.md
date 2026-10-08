@@ -116,9 +116,10 @@ ArgoCD เห็น manifest เปลี่ยน ────────┘
 
 1. `oc policy add-role-to-user system:image-builder system:serviceaccount:<ns>:pipeline -n <ns>` — ให้ push image ได้
 2. `oc adm policy add-scc-to-user privileged -z pipeline -n <ns>` — ให้ buildah รัน privileged ได้
-3. secret `registry-auth` (จาก `oc registry login`) — สำหรับ login internal registry
-4. secret `github-push-token` (fine-grained PAT, Contents: RW) — สำหรับ push manifest กลับ repo
-5. `oc apply -f .tekton/repository.yaml` — ผูก repo กับ pipeline
+3. secret `github-push-token` (PAT สิทธิ์ Contents: RW) — สำหรับ push manifest กลับ repo
+4. `oc apply -f .tekton/repository.yaml` — ผูก repo กับ pipeline
+
+> login internal registry ไม่ต้องตั้งอะไร — build step ใช้ SA token ที่ pod mount มาให้เอง
 
 ---
 

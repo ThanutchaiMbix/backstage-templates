@@ -14,16 +14,13 @@
 #          system:serviceaccount:<ns>:pipeline -n <ns>
 #   2) อนุญาตให้ buildah รันแบบ privileged:
 #        oc adm policy add-scc-to-user privileged -z pipeline -n <ns>
-#   3) secret สำหรับ login internal registry:
-#        oc registry login --insecure=true \
-#          --registry=image-registry.openshift-image-registry.svc:5000
-#        oc create secret generic registry-auth \
-#          --from-file=.dockerconfigjson=$HOME/.config/containers/auth.json -n <ns>
-#   4) secret สำหรับ push manifest กลับ repo (fine-grained PAT สิทธิ์ Contents: RW):
+#   3) secret สำหรับ push manifest กลับ repo (PAT สิทธิ์ Contents: RW):
 #        oc create secret generic github-push-token \
 #          --from-literal=token=<GITHUB_PAT> -n <ns>
-#   5) apply Repository CR ผูก repo กับ pipeline:
+#   4) apply Repository CR ผูก repo กับ pipeline:
 #        oc apply -f .tekton/repository.yaml
+#
+# (login internal registry ไม่ต้องใช้ secret — build step ใช้ SA token ที่ pod mount มาให้เอง)
 #
 # หมายเหตุ: ไม่ใช้ hub resolver เพื่อให้รันได้แม้ cluster เข้า artifacthub ไม่ได้
 # รูปแบบ placeholder ที่นำหน้าด้วยเครื่องหมาย dollar คือ template ของ Backstage (render ตอน generate repo)
@@ -54,9 +51,6 @@ spec:
           resources:
             requests:
               storage: 1Gi
-    - name: registry-auth
-      secret:
-        secretName: registry-auth
     - name: github-auth
       secret:
         secretName: github-push-token
@@ -70,7 +64,6 @@ spec:
         type: string
     workspaces:
       - name: source
-      - name: registry-auth
       - name: github-auth
     tasks:
       - name: fetch-source
@@ -93,8 +86,6 @@ spec:
         workspaces:
           - name: source
             workspace: source
-          - name: registry-auth
-            workspace: registry-auth
         steps:
           - name: build-and-push
             image: quay.io/buildah/stable:latest
@@ -104,9 +95,13 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
               cd "$(workspaces.source.path)/source"
-              export REGISTRY_AUTH_FILE="$(workspaces.registry-auth.path)/.dockerconfigjson"
               IMAGE="$(params.image)"
               TAG="$(params.revision)"
+              # login internal registry ด้วย SA token ที่ pod mount มาให้ (ไม่ต้องมี secret)
+              buildah login --tls-verify=false \
+                -u serviceaccount \
+                -p "$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                image-registry.openshift-image-registry.svc:5000
               buildah --storage-driver=vfs bud --tls-verify=false \
                 -t "${IMAGE}:${TAG}" -f Dockerfile .
               buildah --storage-driver=vfs push --tls-verify=false \
