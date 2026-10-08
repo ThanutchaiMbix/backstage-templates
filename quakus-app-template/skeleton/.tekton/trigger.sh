@@ -28,7 +28,8 @@ REVISION="$(git rev-parse HEAD)"
 NS="${PIPELINE_NAMESPACE:-demo}"
 
 # กันไฟล์ดิบจาก skeleton (placeholder ของ Backstage จะถูก render เฉพาะตอน generate ผ่าน template)
-if grep -q '\${{' "$(dirname "$0")/push.yaml"; then
+# หมายเหตุ: pattern เขียนแบบ bracket เพื่อไม่มีลำดับตัวอักษรที่ nunjucks มองเป็น variable tag
+if grep -q '[$][{][{]' "$(dirname "$0")/push.yaml"; then
   echo "ERROR: push.yaml ยังมี placeholder ของ Backstage ที่ไม่ถูก render" >&2
   echo "       ไฟล์นี้มาจาก skeleton ของ template โดยตรง — ใช้เฉพาะไฟล์ใน repo ที่ generate ผ่าน Backstage เท่านั้น" >&2
   echo "       แก้ด้วย:  git restore .tekton/push.yaml" >&2
