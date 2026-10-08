@@ -33,8 +33,8 @@ echo "ns:       $NS"
 echo
 
 RUN_JSON="$("$TKNPAC" resolve -f "$(dirname "$0")/push.yaml" -p repo_url="$REPO_URL" -p revision="$REVISION")"
-RUN_NAME="$(printf '%s\n' "$RUN_JSON" | awk '/^[[:space:]]+name:/{print $2; exit}')"
-printf '%s\n' "$RUN_JSON" | oc create -n "$NS" -f -
+CREATED="$(printf '%s\n' "$RUN_JSON" | oc create -n "$NS" -f - -o name)"
+RUN_NAME="${CREATED##*/}"
 
 echo
 echo "PipelineRun '$RUN_NAME' created"
