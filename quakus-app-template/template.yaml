@@ -66,6 +66,11 @@ spec:
           type: string
           default: apps.example.openshift.com
           description: domain ของ route บน cluster เช่น apps.mycluster.example.com (ใช้สร้างลิงก์ใน catalog)
+        proxyUrl:
+          title: Outbound Proxy URL
+          type: string
+          default: http://proxy.ocp420.mbixtech.net:8080
+          description: สำหรับ cluster ที่บังคับ egress ผ่าน proxy (mvn/git/buildah ใน CI จะใช้ค่านี้) — เว้นว่างได้ถ้าออกเน็ตตรงได้
 
   steps:
     # 1. generate code (k8s/ + .tekton/ ถูกใส่มาให้แต่ยัง "หลับ" — ไม่มีการ deploy)
@@ -83,6 +88,7 @@ spec:
           argocdNamespace: openshift-gitops
           clusterAppsDomain: ${{ parameters.clusterAppsDomain }}
           image: image-registry.openshift-image-registry.svc:5000/${{ parameters.targetNamespace }}/${{ parameters.application_name }}
+          proxyUrl: ${{ parameters.proxyUrl }}
 
     # 2. publish repo
     - id: publish

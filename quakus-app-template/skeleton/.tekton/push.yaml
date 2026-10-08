@@ -43,6 +43,8 @@ spec:
       value: "{{ revision }}"
     - name: image
       value: "${{ values.image }}"
+    - name: proxy_url
+      value: "${{ values.proxyUrl }}"
   workspaces:
     - name: source
       volumeClaimTemplate:
@@ -62,6 +64,8 @@ spec:
       - name: revision
         type: string
       - name: image
+        type: string
+      - name: proxy_url
         type: string
     workspaces:
       - name: source
@@ -98,6 +102,13 @@ spec:
               image: quay.io/buildah/stable:latest
               securityContext:
                 privileged: true
+              env:
+                - name: HTTP_PROXY
+                  value: "$(params.proxy_url)"
+                - name: HTTPS_PROXY
+                  value: "$(params.proxy_url)"
+                - name: NO_PROXY
+                  value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,image-registry.openshift-image-registry.svc"
               script: |
                 #!/usr/bin/env bash
                 set -euo pipefail
@@ -110,6 +121,7 @@ spec:
                   -p "$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
                   image-registry.openshift-image-registry.svc:5000
                 buildah --storage-driver=vfs bud --tls-verify=false \
+                  --build-arg PROXY_URL="$(params.proxy_url)" \
                   -t "${IMAGE}:${TAG}" -f Dockerfile .
                 buildah --storage-driver=vfs push --tls-verify=false \
                   "docker://${IMAGE}:${TAG}"
@@ -128,6 +140,13 @@ spec:
           steps:
             - name: bump-image-tag
               image: registry.access.redhat.com/ubi9/ubi:latest
+              env:
+                - name: HTTPS_PROXY
+                  value: "$(params.proxy_url)"
+                - name: HTTP_PROXY
+                  value: "$(params.proxy_url)"
+                - name: NO_PROXY
+                  value: "localhost,127.0.0.1"
               script: |
                 #!/usr/bin/env bash
                 set -euo pipefail
