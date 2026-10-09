@@ -55,35 +55,19 @@ spec:
       input:
         entityRef: ${{ parameters.component }}
 
-    # 2. สร้าง ArgoCD Application ผ่าน ArgoCD proxy ของ Backstage
-    #    (แนวเดียวกับที่ใช้งานได้อยู่ — ถ้าต่อยอดแบบ app-of-apps ให้เปลี่ยน step นี้เป็นการ commit ไฟล์ Application เข้า GitOps repo แทน)
+    # 2. สร้าง ArgoCD Application ผ่าน action ของ @roadiehq/scaffolder-backend-argocd
+    #    (คุม token/instance ที่ app-config: argocd.appLocatorMethods, instance ชื่อ "default")
     - id: createArgoApp
       name: Create ArgoCD Application
-      action: http:backstage:request
+      action: argocd:create-resources
       input:
-        method: POST
-        path: /proxy/argocd/api/applications
-        headers:
-          content-type: application/json
-        body:
-          metadata:
-            name: ${{ steps.fetchEntity.output.entity.metadata.name }}
-            namespace: ${{ parameters.argocdNamespace }}
-          spec:
-            project: default
-            source:
-              repoURL: https://github.com/${{ steps.fetchEntity.output.entity.metadata.annotations['github.com/project-slug'] }}.git
-              targetRevision: HEAD
-              path: k8s
-            destination:
-              server: https://kubernetes.default.svc
-              namespace: ${{ parameters.targetNamespace }}
-            syncPolicy:
-              automated:
-                prune: true
-                selfHeal: true
-              syncOptions:
-                - CreateNamespace=true
+        appName: ${{ steps.fetchEntity.output.entity.metadata.name }}
+        argoInstance: default
+        projectName: default
+        namespace: ${{ parameters.targetNamespace }}
+        repoUrl: https://github.com/${{ steps.fetchEntity.output.entity.metadata.annotations['github.com/project-slug'] }}.git
+        labelValue: ${{ steps.fetchEntity.output.entity.metadata.name }}
+        path: k8s
 
   output:
     text:
