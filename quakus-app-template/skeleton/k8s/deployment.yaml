@@ -73,7 +73,9 @@ spec:
     kind: Service
     name: ${{ values.application_name }}
   port:
-    targetPort: 80
+    # สำคัญ: targetPort ต้องเป็น container port (8080) — ใส่เป็น service front port (80)
+    # แล้ว router จะ resolve ไม่เจอ (backend ว่าง → 503)
+    targetPort: 8080
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
