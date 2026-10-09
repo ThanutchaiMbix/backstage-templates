@@ -55,18 +55,17 @@ spec:
       input:
         entityRef: ${{ parameters.component }}
 
-    # 2. สร้าง ArgoCD Application ผ่าน action ของ @roadiehq/scaffolder-backend-argocd
-    #    (คุม token/instance ที่ app-config: argocd.appLocatorMethods, instance ชื่อ "default")
+    # 2. สร้าง ArgoCD Application — custom action (ไม่แตะ AppProject:
+    #    project เป็นหน้าที่ของ admin ต้องมีอยู่ก่อน; instance/token จาก app-config argocd.appLocatorMethods)
     - id: createArgoApp
       name: Create ArgoCD Application
-      action: argocd:create-resources
+      action: argocd:createApplication
       input:
         appName: ${{ steps.fetchEntity.output.entity.metadata.name }}
         argoInstance: default
         projectName: default
         namespace: ${{ parameters.targetNamespace }}
         repoUrl: https://github.com/${{ steps.fetchEntity.output.entity.metadata.annotations['github.com/project-slug'] }}.git
-        labelValue: ${{ steps.fetchEntity.output.entity.metadata.name }}
         path: k8s
 
   output:
