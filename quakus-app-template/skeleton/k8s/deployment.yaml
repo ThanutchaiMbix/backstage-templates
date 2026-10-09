@@ -74,3 +74,6 @@ spec:
     name: ${{ values.application_name }}
   port:
     targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
