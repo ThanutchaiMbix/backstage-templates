@@ -11,6 +11,7 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     backstage.io/kubernetes-id: ${{ values.application_name }}
     backstage.io/kubernetes-namespace: ${{ values.targetNamespace }}
+    tekton.dev/cicd: "true"
   tags:
     - quarkus
     - camel
