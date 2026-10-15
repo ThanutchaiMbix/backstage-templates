@@ -3,5 +3,6 @@
 !/.gitignore
 # README.md (migration guide) มีข้อมูลงานลูกค้า — เก็บไว้ local เท่านั้น ห้าม push (repo เป็น public)
 !/openshift-lab-gitops-plan.md
+!/backstage-template-tutorial.md
 !/quakus-app-template/
 !/deploy-service-template/
