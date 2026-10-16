@@ -211,3 +211,53 @@ ArgoCD sync → `https://quarkus-demo-1-demo.apps.ocp420.mbixtech.net/hello` →
 - Deploy Backstage ตัวเองขึ้น cluster (helm + Postgres + ย้าย app-config) — ตอนนี้ยังรัน local
 - เตรียม template ตระกูลอื่น (node/python) โดยก๊อบแนว `.tekton/` + `k8s/` + Route จาก template นี้
 - (ออปชัน) kubernetes/ArgoCD frontend plugins, Node cache ให้ mvn build เร็วขึ้น, self-hosted runner ถ้าอยากได้ auto-CI
+
+---
+
+## 8. แผน: PAC GitHub App (auto-CI เมื่อองค์กรเปิดทาง)
+
+> สถานะ: ใช้ PAC อยู่แล้ว 99% — เหลือเพียง "สายส่ง event" จาก GitHub เข้า cluster
+> (ปัจจุบันตันเพราะ intranet + นโยบาย) เมื่อข้อจำกัดถูกปลด ระบบ auto ขึ้นภายใน ~1-2 ชม.
+
+### 8.1 สิ่งที่ต้อง "ขอ" (lead time ยาวสุด — ยื่นล่วงหน้า)
+
+| ขอจากใคร | ขออะไร | ไว้ทำอะไร |
+|---|---|---|
+| Network team | public DNS ให้ route ของ PAC (ns `openshift-pipelines`) + เปิด 443 inbound จาก GitHub webhook IP | ช่องทางส่ง event เข้า cluster |
+| Org owner (`mbix-devops`) | อนุมัติติดตั้ง GitHub App | ตัวส่ง event + token อัตโนมัติ (installation token หมดอายุเอง) |
+
+### 8.2 งาน implement เมื่อได้รับอนุมัติ (~1-2 ชม.)
+
+| ขั้น | งาน | หมายเหตุ |
+|---|---|---|
+| 1 | `~/bin/tkn-pac bootstrap github-app` | เปิด browser สร้าง App ตาม manifest ที่ PAC generate (permissions/events ใส่มาให้ครบ) — tkn-pac ติดตั้งแล้วใน `~/bin` |
+| 2 | Generate private key (.pem) + client secret → วางตาม prompt | CLI สร้าง secret `pipelines-as-code-secret` ใน ns `openshift-pipelines` ให้เอง |
+| 3 | Install App ให้ org `mbix-devops` | ครอบทุก repo หรือเลือก |
+| 4 | `oc apply -f .tekton/repository.yaml` ต่อ repo | มีใน skeleton แล้ว — App mode ไม่ต้องแนบ credential (ต่างจาก webhook mode) |
+| 5 | push ทดสอบ | PipelineRun เกิดเองใน ~วินาที ไม่ต้องรัน trigger.sh |
+
+### 8.3 ของที่ได้เพิ่ม (manual trigger ทำไม่ได้)
+
+- ความหน่วงระดับวินาที (event-driven)
+- **PR validation**: copy `push.yaml` → `.tekton/pull-request.yaml` เปลี่ยน `on-event: "[pull_request]"` → ทุก PR ถูก build ตรวจก่อน merge + check-run บน GitHub
+- `/retest` `/ok-to-test` comment triggers
+- `max-keep-runs: 5` ทำงานจริง (PAC เก็บกวาดเอง) + cancel run เก่าเมื่อ push ซ้อน
+
+### 8.4 สิ่งที่ไม่ต้องทำ/ไม่หาย
+
+- `.tekton/push.yaml`, RBAC, secrets, Backstage ทั้งหมด — ใช้ต่อเหมือนเดิม (annotation PAC ครบมาตั้งแต่แรก)
+- `trigger.sh` เก็บไว้เป็น **debug fallback** — สร้าง PipelineRun ชุดเดียวกัน ใช้แทนได้ทันทีเมื่อ webhook มีปัญหา
+- สะพานชั่วคราวก่อนถึงวันนั้น: CronJob poller (ทางเลือก B — ทำได้ใน cluster โดยไม่ต้องขอใคร)
+
+### 8.5 เอกสารอ้างอิง (ตรวจลิงก์แล้วทั้งหมด 2026-10-16)
+
+| หัวข้อ | ลิงก์ |
+|---|---|
+| PAC GitHub App (วิธีตั้งค่าที่ตรงกับ §8.2) | https://github.com/tektoncd/pipelines-as-code/blob/main/docs/content/docs/providers/github-app.md |
+| PAC บน OpenShift (ติดตั้ง/ตั้งค่าบน cluster แบบเรา) | https://github.com/tektoncd/pipelines-as-code/blob/main/docs/content/docs/installation/openshift.md |
+| Repository CRD + token scoping | https://github.com/tektoncd/pipelines-as-code/blob/main/docs/content/docs/guides/repository-crd/github-token-scoping.md |
+| Red Hat OpenShift Pipelines — Pipelines as Code (official, ตัวที่รันบน cluster) | https://docs.redhat.com/en/documentation/red_hat_openshift_pipelines/ |
+| สร้าง GitHub App (คู่มือ GitHub) | https://docs.github.com/en/developers/apps/creating-a-github-app |
+
+> หมายเหตุ: เว็บ docs เดิม (pipelines-as-code.github.io / pipelinesascode.com) ออฟไลน์อยู่ช่วงย้าย repo
+> (repo ย้ายไป `tektoncd/pipelines-as-code`) — อ้างอิงจากไฟล์ใน repo โดยตรงจึงปลอดภัยที่สุด
