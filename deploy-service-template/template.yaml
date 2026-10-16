@@ -44,7 +44,7 @@ spec:
         clusterAppsDomain:
           title: Cluster Apps Domain
           type: string
-          default: apps.example.openshift.com
+          default: apps.ocp420.mbixtech.net
           description: domain ของ route บน cluster สำหรับสร้างลิงก์ในหน้าผลลัพธ์
 
   steps:

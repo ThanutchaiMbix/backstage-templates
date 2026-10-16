@@ -23,8 +23,7 @@ spec:
         owner:
           title: Owner
           type: string
-          default: developers
-          description: กลุ่มเจ้าของ service (Group จาก catalog)
+          description: กลุ่มเจ้าของ service (Group จาก catalog — เลือกจากรายการ)
           ui:field: OwnerPicker
           ui:options:
             catalogFilter:
@@ -50,7 +49,8 @@ spec:
         orgName:
           title: GitHub Organization
           type: string
-          default: mbixdemodevs
+          default: mbix-devops
+          description: org ปลายทางของ repo (team org)
         targetNamespace:
           title: Target Namespace
           type: string
@@ -64,8 +64,8 @@ spec:
         clusterAppsDomain:
           title: Cluster Apps Domain
           type: string
-          default: apps.example.openshift.com
-          description: domain ของ route บน cluster เช่น apps.mycluster.example.com (ใช้สร้างลิงก์ใน catalog)
+          default: apps.ocp420.mbixtech.net
+          description: domain ของ route บน cluster (ใช้สร้างลิงก์ใน catalog)
         proxyUrl:
           title: Outbound Proxy URL
           type: string
