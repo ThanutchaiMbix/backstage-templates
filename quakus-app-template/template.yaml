@@ -98,7 +98,9 @@ spec:
         repoUrl: github.com?owner=${{ parameters.orgName }}&repo=${{ parameters.application_name }}
         description: ${{ parameters.description }}
         defaultBranch: main
-        repoVisibility: public
+        # repo ของ app เป็น private (org policy: members สร้างได้เฉพาะ private)
+        # pipeline clone ด้วย token จาก secret github-push-token แล้ว
+        repoVisibility: private
         # flow ของเรา push ตรงเข้า main (cluster lab) — ไม่ล็อก main ด้วย branch protection
         # (publish:github default ของ Backstage เวอร์ชันใหม่คือ protect ให้ ต้องปิดเอง)
         protectDefaultBranch: false

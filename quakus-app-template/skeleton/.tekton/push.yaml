@@ -78,9 +78,12 @@ spec:
         workspaces:
           - name: source
             workspace: source
+          - name: github-auth
+            workspace: github-auth
         taskSpec:
           workspaces:
             - name: source
+            - name: github-auth
           steps:
             - name: clone
               image: registry.access.redhat.com/ubi9/ubi:latest
@@ -88,7 +91,10 @@ spec:
                 #!/usr/bin/env bash
                 set -euo pipefail
                 dnf install -y git >/dev/null
-                git clone "$(params.repo_url)" "$(workspaces.source.path)/source"
+                # clone ด้วย token — รองรับ private repo (public ก็ใช้ได้)
+                REPO_PATH="$(echo "$(params.repo_url)" | sed -E 's#https://[^/]+/##; s#\.git$##')"
+                TOKEN="$(cat "$(workspaces.github-auth.path)/token")"
+                git clone "https://x-access-token:${TOKEN}@github.com/${REPO_PATH}.git" "$(workspaces.source.path)/source"
                 cd "$(workspaces.source.path)/source"
                 git checkout "$(params.revision)"
 
