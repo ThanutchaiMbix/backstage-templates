@@ -179,3 +179,35 @@ ArgoCD เห็น manifest เปลี่ยน ────────┘
 **ข้อจำกัดที่ควรรู้:** `github.com/project-slug` annotation เป็นข้อบังคับของ Template 2
 (ตอนนี้ scaffolder v1beta3 เช็กเงื่อนไขก่อนข้าม step ไม่ได้) — component ที่ไม่มี annotation
 นี้จะสร้าง repoURL ผิด ให้ใช้เฉพาะ component ที่เจนจาก Template 1 หรือใส่ annotation เอง
+
+---
+
+## 7. สถานะจริงหลัง Go-Live (2026-10-09) — วงจรครบ 100%
+
+**ผลพิสูจน์:** generate app จาก Template → CI build (manual trigger) → bump commit →
+ArgoCD sync → `https://quarkus-demo-1-demo.apps.ocp420.mbixtech.net/hello` → **HTTP 200**
+ผ่าน TLS ใบจริงขององค์กร โดย deploy รอบสุดท้ายไม่มีการ `oc apply` จากมนุษย์เลย
+
+### บทเรียนที่เจอจริง (gotchas) — อ่านก่อนทำ app ตัวถัดไป
+
+| # | ปัญหา | ทางแก้ (ฝังใน template แล้ว) |
+|---|---|---|
+| 1 | artifact Red Hat ไม่อยู่บน Maven Central | pom ประกาศ `maven.repository.redhat.com/ga` ไว้ในตัว |
+| 2 | cluster บังคับ egress ผ่าน proxy | param `proxyUrl` → mvn ผ่าน settings.xml, git/buildah ผ่าน env |
+| 3 | `publish:github` protect main ให้อัตโนมัติ | `protectDefaultBranch: false` |
+| 4 | GitHub App/webhook ใช้ไม่ได้ (intranet + นโยบายองค์กร) | trigger ด้วยมือ `bash .tekton/trigger.sh` |
+| 5 | Tekton v1: inline steps ต้องอยู่ใน `taskSpec` (+ประกาศ workspaces) | ตรวจด้วย `oc apply --dry-run=server` ก่อน push เสมอ |
+| 6 | buildah: ห้ามใส่ `docker://` ตอน push, short image name ต้องระบุ registry เต็ม, login ด้วย SA token ได้ | อยู่ใน push.yaml แล้ว |
+| 7 | **Route `targetPort` ต้องเป็น container port (8080)** — ใส่เป็น service front port (80) router resolve ไม่ได้ → backend ว่าง → 503 | skeleton ใช้ 8080 |
+| 8 | ArgoCD sync ไม่ได้ใน ns ใหม่ | `oc label ns <ns> argocd.argoproj.io/managed-by=openshift-gitops` (one-time ต่อ namespace) |
+| 9 | หลักการ: AppProject = ของ admin | custom action `argocd:createApplication` (ไม่แตะ project API, รับ 409 idempotent) |
+| 10 | node `s7m72` network พัง (host→pod ตัน, egress แปลก) → cordon ไว้ | แจ้ง infra reboot แล้ว `oc uncordon` คืน |
+| 11 | skeleton ห้ามมีลำดับตัวอักษร `${{` นอก expression (comment ก็พัง) | ตรวจด้วย `.tools/render-test.js` ก่อน push |
+| 12 | custom scaffolder action (new backend) | static import ไฟล์ local + ลงทะเบียนผ่าน `scaffolderActionsExtensionPoint` (root import) + method `addActions` (พหูพจน์) |
+| 13 | ArgoCD `repository not accessible` บน private repo | repo secrets ไม่รองรับ wildcard — ใช้ secret ชนิด **`repo-creds`** (label) + url เป็น **prefix** `https://github.com/mbix-devops` (ครอบทุก repo ของ org, ครั้งเดียวต่อ org — สร้างแล้ว: secret `mbix-devops-repo-creds`) |
+
+### หน้าที่ต่อไป (ครึ่งหลัง)
+
+- Deploy Backstage ตัวเองขึ้น cluster (helm + Postgres + ย้าย app-config) — ตอนนี้ยังรัน local
+- เตรียม template ตระกูลอื่น (node/python) โดยก๊อบแนว `.tekton/` + `k8s/` + Route จาก template นี้
+- (ออปชัน) kubernetes/ArgoCD frontend plugins, Node cache ให้ mvn build เร็วขึ้น, self-hosted runner ถ้าอยากได้ auto-CI

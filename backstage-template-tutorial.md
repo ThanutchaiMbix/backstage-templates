@@ -172,6 +172,20 @@ oc create secret generic github-push-token -n demo --from-literal=token=$T
 unset T
 ```
 
+# 4) credential ให้ ArgoCD อ่าน private repo ของ org (ครั้งเดียวต่อ org)
+#    หมายเหตุ: ต้องเป็น secret ชนิด "repo-creds" + url แบบ prefix —
+#    ชนิด "repository" ไม่รองรับ wildcard และจะได้ error "repository not accessible"
+read -s -p "GitHub PAT: " PW; echo
+oc create secret generic mbix-devops-repo-creds -n openshift-gitops \
+  --from-literal=url='https://github.com/mbix-devops' \
+  --from-literal=username='<GitHub user>' \
+  --from-literal=password="$PW" \
+  --from-literal=project='default'
+oc label secret mbix-devops-repo-creds -n openshift-gitops \
+  argocd.argoproj.io/secret-type=repo-creds
+unset PW
+```
+
 > ไม่ต้องตั้ง secret registry — build step login internal registry ด้วย SA token เอง
 > RBAC ของ backstage บน ArgoCD: account `backstage` (apiKey) + policy ให้ `applications, *, */*` — **AppProject สร้างไม่ได้ตามการออกแบบ** (เป็นหน้าที่ admin)
 
