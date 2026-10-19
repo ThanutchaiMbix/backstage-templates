@@ -193,7 +193,7 @@ ArgoCD sync → `https://quarkus-demo-1-demo.apps.ocp420.mbixtech.net/hello` →
 | # | ปัญหา | ทางแก้ (ฝังใน template แล้ว) |
 |---|---|---|
 | 1 | artifact Red Hat ไม่อยู่บน Maven Central | pom ประกาศ `maven.repository.redhat.com/ga` ไว้ในตัว |
-| 2 | cluster บังคับ egress ผ่าน proxy | param `proxyUrl` → mvn ผ่าน settings.xml, git/buildah ผ่าน env |
+| 2 | cluster บังคับ egress ผ่าน proxy | param `proxyUrl` → mvn ผ่าน settings.xml, git/buildah ผ่าน env; **มี Nexus แล้ว: `gsb-maven-group` (nppsts-nexus) เป็น mirror หลักของ Maven โดยดีฟอลต์ — ตัด proxy ออกจาก dependency path** |
 | 3 | `publish:github` protect main ให้อัตโนมัติ | `protectDefaultBranch: false` |
 | 4 | GitHub App/webhook ใช้ไม่ได้ (intranet + นโยบายองค์กร) | trigger ด้วยมือ `bash .tekton/trigger.sh` |
 | 5 | Tekton v1: inline steps ต้องอยู่ใน `taskSpec` (+ประกาศ workspaces) | ตรวจด้วย `oc apply --dry-run=server` ก่อน push เสมอ |
