@@ -1,0 +1,164 @@
+# =============================================================================
+# CI Poller — auto-trigger แบบ pull (ทางเลือกเมื่อ cluster ไม่มี inbound)
+#
+# ทำงานทุก 5 นาที: ถาม GitHub API ว่าแต่ละ repo ใน list มี commit ใหม่บน main ไหม
+#   → ถ้ามี: ดึง .tekton/push.yaml จาก repo, แทนค่า {{ repo_url }}/{{ revision }}
+#     แล้วสร้าง PipelineRun ใน ns นี้ (เหมือน trigger.sh แต่ไม่ต้องมีคนสั่ง)
+#
+# เพิ่ม/ลด repo ที่จับตา: แก้ key "repos" ใน ConfigMap ci-poller-config (คั่นด้วยช่องว่าง)
+# สถานะ sha ล่าสุดเก็บใน ConfigMap ci-poller-state (อย่าลบ)
+# ต้องมี secret github-push-token ใน ns เดียวกัน (ใช้ยิง GitHub API สำหรับ private repo)
+#
+# ติดตั้ง:  oc apply -f ci-poller.yaml
+# ดู log:   oc logs cronjob/ci-poller -n demo --tail=20
+# ลบทิ้ง:   oc delete cronjob ci-poller -n demo (เมื่อได้ webhook จริง)
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-poller
+  namespace: demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-poller
+  namespace: demo
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-poller
+  namespace: demo
+subjects:
+  - kind: ServiceAccount
+    name: ci-poller
+    namespace: demo
+roleRef:
+  kind: Role
+  name: ci-poller
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ci-poller-config
+  namespace: demo
+data:
+  # repos ที่จับตา (คั่นด้วยช่องว่าง) — เพิ่ม repo ใหม่ที่นี่
+  repos: "mbix-devops/team-hello-1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ci-poller-script
+  namespace: demo
+data:
+  poll.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v curl >/dev/null || dnf install -y curl >/dev/null 2>&1
+    SA=/var/run/secrets/kubernetes.io/serviceaccount
+    K8S="https://kubernetes.default.svc"
+    AUTH="Authorization: Bearer $(cat $SA/token)"
+    CA="--cacert $SA/ca.crt"
+    GH_AUTH="Authorization: Bearer $GITHUB_TOKEN"
+
+    cm_get()  { curl -s $CA -H "$AUTH" "$K8S/api/v1/namespaces/$NAMESPACE/configmaps/ci-poller-state"; }
+    cm_patch() {
+      curl -s $CA -H "$AUTH" -H "Content-Type: application/merge-patch+json" \
+        -X PATCH -d "{\"data\":{\"$1\":\"$2\"}}" \
+        "$K8S/api/v1/namespaces/$NAMESPACE/configmaps/ci-poller-state" >/dev/null
+    }
+
+    for REPO in $REPOS; do
+      KEY="$(echo "$REPO" | tr '/.' '__')"
+      LAST="$(cm_get | grep -o "\"$KEY\":\"[^\"]*\"" | cut -d'"' -f4 || true)"
+      SHA="$(curl -s --max-time 20 -H "$GH_AUTH" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/commits/main" \
+              | grep -o '"sha": *"[0-9a-f]\{40\}"' | head -1 | grep -o '[0-9a-f]\{40\}' || true)"
+      if [ -z "$SHA" ]; then echo "[$REPO] อ่าน sha ไม่สำเร็จ — ข้าม"; continue; fi
+      if [ "$SHA" = "$LAST" ]; then echo "[$REPO] up-to-date (${SHA:0:8})"; continue; fi
+
+      echo "[$REPO] commit ใหม่: ${LAST:-none} -> ${SHA:0:8} — เริ่ม CI"
+      CODE=$(curl -s --max-time 20 -H "$GH_AUTH" \
+        "https://raw.githubusercontent.com/$REPO/main/.tekton/push.yaml" \
+        | sed -e "s|{{ repo_url }}|https://github.com/$REPO|g" \
+              -e "s|{{ revision }}|$SHA|g" \
+              -e 's|^  name: build-and-update-manifests$|  generateName: build-and-update-manifests-|' \
+        > /tmp/run.yaml
+        curl -s $CA -H "$AUTH" -H "Content-Type: application/yaml" \
+          -X POST --data-binary @/tmp/run.yaml \
+          -o /tmp/resp.json -w '%{http_code}' \
+          "$K8S/apis/tekton.dev/v1/namespaces/$NAMESPACE/pipelineruns") || CODE=000
+
+      if [ "$CODE" = "201" ]; then
+        cm_patch "$KEY" "$SHA"
+        echo "[$REPO] PipelineRun created ✓"
+      else
+        echo "[$REPO] สร้าง PipelineRun ไม่สำเร็จ (HTTP $CODE):" >&2
+        cat /tmp/resp.json >&2 || true
+        exit 1
+      fi
+    done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ci-poller
+  namespace: demo
+  labels:
+    backstage.io/kubernetes-id: ci-poller
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            backstage.io/kubernetes-id: ci-poller
+        spec:
+          serviceAccountName: ci-poller
+          restartPolicy: Never
+          containers:
+            - name: poll
+              image: registry.access.redhat.com/ubi9/ubi:latest
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: github-push-token
+                      key: token
+                - name: REPOS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: ci-poller-config
+                      key: repos
+                - name: NAMESPACE
+                  value: demo
+                - name: HTTPS_PROXY
+                  value: http://proxy.ocp420.mbixtech.net:8080
+                - name: HTTP_PROXY
+                  value: http://proxy.ocp420.mbixtech.net:8080
+                - name: NO_PROXY
+                  value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,kubernetes.default.svc,nppsts-nexus.ocp420.mbixtech.net"
+              command: ["/bin/bash", "/scripts/poll.sh"]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+          volumes:
+            - name: script
+              configMap:
+                name: ci-poller-script
+                defaultMode: 0755
