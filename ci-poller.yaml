@@ -88,11 +88,12 @@ data:
       if [ "$SHA" = "$LAST" ]; then echo "[$REPO] up-to-date (${SHA:0:8})"; continue; fi
 
       echo "[$REPO] commit ใหม่: ${LAST:-none} -> ${SHA:0:8} — เริ่ม CI"
+      REPO_BASE="${REPO##*/}"
       CODE=$(curl -s --max-time 20 -H "$GH_AUTH" \
         "https://raw.githubusercontent.com/$REPO/main/.tekton/push.yaml" \
         | sed -e "s|{{ repo_url }}|https://github.com/$REPO|g" \
               -e "s|{{ revision }}|$SHA|g" \
-              -e 's|^  name: build-and-update-manifests$|  generateName: build-and-update-manifests-|' \
+              -e 's|^  name: build-and-update-manifests$|  generateName: '"${REPO_BASE}"'-build-|' \
         > /tmp/run.yaml
         curl -s $CA -H "$AUTH" -H "Content-Type: application/yaml" \
           -X POST --data-binary @/tmp/run.yaml \

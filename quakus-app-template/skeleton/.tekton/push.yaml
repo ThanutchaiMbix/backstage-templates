@@ -30,7 +30,8 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  name: build-and-update-manifests
+  # ชื่อ base — tkn-pac resolve จะเติม suffix ให้เอง (แยกตาม app ได้)
+  name: ${{ values.application_name }}-build
   labels:
     # ผูก run กับ entity ใน Backstage (Tekton plugin ใช้ label นี้ค้นหา)
     backstage.io/kubernetes-id: ${{ values.application_name }}
