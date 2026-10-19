@@ -1,0 +1,23 @@
+# org data สำหรับ catalog (OwnerPicker / หน้า Organization)
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: mbix-devops
+  title: MBIX DevOps
+  description: ทีม platform/devops เจ้าของ golden path
+spec:
+  type: team
+  profile:
+    email: devops@mbixtech.net
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: thanutchai
+  title: Thanutchai
+spec:
+  profile:
+    email: thanutchai@mbixtech.net
+  memberOf:
+    - mbix-devops
