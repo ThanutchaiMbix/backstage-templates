@@ -89,6 +89,7 @@ spec:
           clusterAppsDomain: ${{ parameters.clusterAppsDomain }}
           image: image-registry.openshift-image-registry.svc:5000/${{ parameters.targetNamespace }}/${{ parameters.application_name }}
           proxyUrl: ${{ parameters.proxyUrl }}
+          nexusMavenUrl: https://nppsts-nexus.ocp420.mbixtech.net/repository/gsb-maven-group
 
     # 2. publish repo
     - id: publish
