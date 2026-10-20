@@ -63,7 +63,7 @@ spec:
       input:
         appName: ${{ steps.fetchEntity.output.entity.metadata.name }}
         argoInstance: default
-        projectName: default
+        projectName: mbix-team
         namespace: ${{ parameters.targetNamespace }}
         repoUrl: https://github.com/${{ steps.fetchEntity.output.entity.metadata.annotations['github.com/project-slug'] }}.git
         path: k8s
