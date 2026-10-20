@@ -89,7 +89,9 @@ spec:
           clusterAppsDomain: ${{ parameters.clusterAppsDomain }}
           image: image-registry.openshift-image-registry.svc:5000/${{ parameters.targetNamespace }}/${{ parameters.application_name }}
           proxyUrl: ${{ parameters.proxyUrl }}
-          nexusMavenUrl: https://nppsts-nexus.ocp420.mbixtech.net/repository/gsb-maven-group
+          nexusMavenUrl: ""
+          # ^ เว้นว่าง = Maven ใน CI ใช้ Red Hat GA + Central ผ่าน cluster proxy (ที่พิสูจน์แล้วว่าผ่าน)
+          #   จะเปิดใช้ Nexus ใหม่เมื่อแก้ TLS cert ให้ container เชื่อถือ (มิฉะนั้น PKIX fail)
 
     # 2. publish repo
     - id: publish

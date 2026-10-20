@@ -4,8 +4,9 @@
 #   - buildah (Go) อ่านจาก env HTTP(S)_PROXY โดยตรง
 #   - mvn (Java) ไม่อ่าน env proxy — ต้องเขียน settings.xml แทน
 ARG PROXY_URL=""
-# Nexus group repo (gsb-maven-group) — Maven mirror ทั้งหมดไปที่นี่ (แก้ที่นี่เมื่อ nexus เปลี่ยน)
-ARG NEXUS_URL="https://nppsts-nexus.ocp420.mbixtech.net/repository/gsb-maven-group"
+# Nexus mirror — ปัจจุบันเว้นว่าง (ใช้ GA+Central ผ่าน proxy) จะเปิดใช้เมื่อ container เชื่อถือ cert ของ Nexus
+# (ตอนนั้นเพิ่ม -Daether.connector.https.securityMode=insecure หรือ import corp CA ลง truststore)
+ARG NEXUS_URL=""
 FROM docker.io/library/maven:3.9-eclipse-temurin-21 AS builder
 ARG PROXY_URL
 ARG NEXUS_URL
